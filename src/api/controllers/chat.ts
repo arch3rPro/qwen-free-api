@@ -467,13 +467,17 @@ async function receiveStream(stream: any): Promise<any> {
           if (role != "assistant" && !_.isString(content)) return str;
           return str + content;
         }, "");
-        const exceptCharIndex = text.indexOf("�");
-        let chunk = text.substring(
-          exceptCharIndex != -1
-            ? Math.min(data.choices[0].message.content.length, exceptCharIndex)
-            : data.choices[0].message.content.length,
-          exceptCharIndex == -1 ? text.length : exceptCharIndex
-        );
+        const exceptCharIndex = text.indexOf("");
+        // let chunk = text.substring(
+        //   exceptCharIndex != -1
+        //     ? Math.min(data.choices[0].message.content.length, exceptCharIndex)
+        //     : data.choices[0].message.content.length,
+        //   exceptCharIndex == -1 ? text.length : exceptCharIndex
+        // );
+        let chunk = ""
+        if(text.length != 0 && text != data.choices[0].message.content){
+          chunk = text
+        }
         if (chunk && result.contentType == "text2image") {
           chunk = chunk.replace(
             /https?:\/\/[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b([-a-zA-Z0-9@:%_\+.~#?&//=\,]*)/gi,
@@ -554,12 +558,16 @@ function createTransStream(stream: any, endCallback?: Function) {
         return str + content;
       }, "");
       const exceptCharIndex = text.indexOf("�");
-      let chunk = text.substring(
-        exceptCharIndex != -1
-          ? Math.min(content.length, exceptCharIndex)
-          : content.length,
-        exceptCharIndex == -1 ? text.length : exceptCharIndex
-      );
+      // let chunk = text.substring(
+      //   exceptCharIndex != -1
+      //     ? Math.min(content.length, exceptCharIndex)
+      //     : content.length,
+      //   exceptCharIndex == -1 ? text.length : exceptCharIndex
+      // );
+      let chunk = ""
+      if(text.length != 0 && text != content){
+        chunk = text
+      }
       if (chunk && result.contentType == "text2image") {
         chunk = chunk.replace(
           /https?:\/\/[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b([-a-zA-Z0-9@:%_\+.~#?&//=\,]*)/gi,

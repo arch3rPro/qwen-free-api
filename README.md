@@ -1,6 +1,27 @@
 # Qwen AI Free 服务
 
-<hr>
+## 项目说明
+
+本项目由[https://github.com/LLM-Red-Team/qwen-free-api](https://github.com/LLM-Red-Team/qwen-free-api)修改而来,感谢大佬的共享
+
+修改原因：
+1. 原项目中官方接口修改导致回答乱序，API基本不可用
+2. 原项目作者基本不咋更新了
+
+## 更新说明
+
+1. 修改chat.ts 修改非流式输出接口方法，参考原项目issue [返回的消息带错乱](https://github.com/LLM-Red-Team/qwen-free-api/issues/72)
+
+2. 更新models.ts 模型列表，支持qwen3-235b-a22b、qwen3-coder-plus、qwen-plus-latest等最新模型
+
+3. 重新打包新版本的docker镜像，`vuldocker/qwen-free-api:latest`
+
+模型已通过测试如下：
+
+![](https://cdn.jsdelivr.net/gh/xiaoY233/PicList@main/public/assets/qwen-free.png)
+
+## 项目介绍
+
 
 <span>[ 中文 | <a href="README_EN.md">English</a> ]</span>
 
@@ -139,7 +160,7 @@ MiniMax（海螺AI）接口转API [hailuo-free-api](https://github.com/LLM-Red-T
 拉取镜像并启动服务
 
 ```shell
-docker run -it -d --init --name qwen-free-api -p 8000:8000 -e TZ=Asia/Shanghai vinlic/qwen-free-api:latest
+docker run -it -d --init --name qwen-free-api -p 8000:8000 -e TZ=Asia/Shanghai vuldocker/qwen-free-api:latest
 ```
 
 查看服务实时日志
@@ -168,7 +189,7 @@ version: '3'
 services:
   qwen-free-api:
     container_name: qwen-free-api
-    image: vinlic/qwen-free-api:latest
+    image: vuldocker/qwen-free-api:latest
     restart: always
     ports:
       - "8000:8000"
