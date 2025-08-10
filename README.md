@@ -2,7 +2,7 @@
 
 ## 项目说明
 
-本项目由[https://github.com/LLM-Red-Team/qwen-free-api](https://github.com/LLM-Red-Team/qwen-free-api)修改而来,感谢大佬的共享
+本项目由[https://github.com/LLM-Red-Team/qwen-free-api](https://github.com/LLM-Red-Team/qwen-free-api)修改而来,感谢大佬的贡献
 
 修改原因：
 1. 原项目中官方接口修改导致回答乱序，API基本不可用
