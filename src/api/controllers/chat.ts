@@ -49,24 +49,46 @@ const FILE_MAX_SIZE = 100 * 1024 * 1024;
  *
  * 在对话流传输完毕后移除会话，避免创建的会话出现在用户的对话列表中
  *
+ * @param convId 会话ID
  * @param ticket tongyi_sso_ticket或login_aliyunid_ticket
  */
 async function removeConversation(convId: string, ticket: string) {
-  const result = await axios.post(
-    `https://qianwen.biz.aliyun.com/dialog/session/delete`,
-    {
-      sessionId: convId,
-    },
-    {
-      headers: {
-        Cookie: generateCookie(ticket),
-        ...FAKE_HEADERS,
+  // 检查会话ID是否有效
+  if (!convId || typeof convId !== 'string' || convId.trim() === '') {
+    logger.warn('Invalid conversation ID, skipping session removal');
+    return;
+  }
+
+  // 提取sessionId（如果convId格式为 sessionId-msgId，则只取sessionId部分）
+  const sessionId = convId.includes('-') ? convId.split('-')[0] : convId;
+  
+  // 再次验证sessionId是否有效
+  if (!sessionId || sessionId.trim() === '') {
+    logger.warn('Invalid session ID extracted, skipping session removal');
+    return;
+  }
+
+  try {
+    const result = await axios.post(
+      `https://qianwen.biz.aliyun.com/dialog/session/delete`,
+      {
+        sessionId: sessionId,
       },
-      timeout: 15000,
-      validateStatus: () => true,
-    }
-  );
-  checkResult(result);
+      {
+        headers: {
+          Cookie: generateCookie(ticket),
+          ...FAKE_HEADERS,
+        },
+        timeout: 15000,
+        validateStatus: () => true,
+      }
+    );
+    checkResult(result);
+    logger.info(`Successfully removed conversation: ${sessionId}`);
+  } catch (err) {
+    logger.warn(`Failed to remove conversation ${sessionId}: ${err.message}`);
+    // 不抛出异常，因为这是清理操作，失败不应影响主要功能
+  }
 }
 
 /**
@@ -74,18 +96,24 @@ async function removeConversation(convId: string, ticket: string) {
  *
  * @param model 模型名称
  * @param messages 参考gpt系列消息格式，多轮对话请完整提供上下文
+ * @param searchType 搜索类型
  * @param ticket tongyi_sso_ticket或login_aliyunid_ticket
  * @param refConvId 引用的会话ID
  * @param retryCount 重试次数
  */
 async function createCompletion(
-  model = MODEL_NAME,
+  model = DEFAULT_MODEL,
   messages: any[],
   searchType: string = '',
   ticket: string,
   refConvId = '',
   retryCount = 0
 ) {
+  // 验证模型是否支持
+  if (!isValidModel(model)) {
+    logger.warn(`Unsupported model: ${model}, using default model: ${DEFAULT_MODEL}`);
+    model = DEFAULT_MODEL;
+  }
   let session: http2.ClientHttp2Session;
   return (async () => {
     logger.info(messages);
