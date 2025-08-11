@@ -20,6 +20,13 @@
 
 ![](https://cdn.jsdelivr.net/gh/xiaoY233/PicList@main/public/assets/qwen-free.png)
 
+### 更新日志
+
+- v0.0.23 （2025-08-11）
+
+    - 经测试，原版接口实际指定模型ID并未生效，修改chat.ts相关逻辑，支持指定模型ID。
+    - 根据官方最新Chat-API接口[https://chat.qwen.ai/api/models](https://chat.qwen.ai/api/models),更新models.ts列表
+
 ## 项目介绍
 
 
