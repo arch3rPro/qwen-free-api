@@ -468,12 +468,11 @@ async function receiveStream(stream: any): Promise<any> {
           return str + content;
         }, "");
         const exceptCharIndex = text.indexOf("�");
-        let chunk = text.substring(
-          exceptCharIndex != -1
-            ? Math.min(data.choices[0].message.content.length, exceptCharIndex)
-            : data.choices[0].message.content.length,
-          exceptCharIndex == -1 ? text.length : exceptCharIndex
-        );
+        let chunk = "";
+        // 只有当text比当前内容长时才提取增量
+        if (text.length > data.choices[0].message.content.length) {
+          chunk = text.substring(data.choices[0].message.content.length);
+        }
         if (chunk && result.contentType == "text2image") {
           chunk = chunk.replace(
             /https?:\/\/[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b([-a-zA-Z0-9@:%_\+.~#?&//=\,]*)/gi,
@@ -554,12 +553,11 @@ function createTransStream(stream: any, endCallback?: Function) {
         return str + content;
       }, "");
       const exceptCharIndex = text.indexOf("�");
-      let chunk = text.substring(
-        exceptCharIndex != -1
-          ? Math.min(content.length, exceptCharIndex)
-          : content.length,
-        exceptCharIndex == -1 ? text.length : exceptCharIndex
-      );
+      let chunk = "";
+      // 只有当text比当前内容长时才提取增量
+      if (text.length > content.length) {
+        chunk = text.substring(content.length);
+      }
       if (chunk && result.contentType == "text2image") {
         chunk = chunk.replace(
           /https?:\/\/[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b([-a-zA-Z0-9@:%_\+.~#?&//=\,]*)/gi,
