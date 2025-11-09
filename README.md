@@ -1,6 +1,38 @@
 # Qwen AI Free 服务
 
-<hr>
+## 项目说明
+
+本项目由[https://github.com/LLM-Red-Team/qwen-free-api](https://github.com/LLM-Red-Team/qwen-free-api)修改而来,感谢大佬的贡献
+
+修改原因：
+1. 原项目中官方接口修改导致回答乱序，API基本不可用
+2. 原项目作者基本不咋更新了
+
+## 更新说明
+
+1. 修改chat.ts 修改非流式输出接口方法，参考原项目issue [返回的消息带错乱](https://github.com/LLM-Red-Team/qwen-free-api/issues/72)
+
+2. 更新models.ts 模型列表，支持qwen3-235b-a22b、qwen3-coder-plus、qwen-plus-latest等最新模型
+
+3. 重新打包新版本的docker镜像，`vuldocker/qwen-free-api:latest`
+
+模型已通过测试如下：
+
+![](https://cdn.jsdelivr.net/gh/xiaoY233/PicList@main/public/assets/qwen-free.png)
+
+### 更新日志
+
+- v0.0.23.1 （2025-08-12）
+
+    - 修复报错：STRING_IS_BLANK-sessionId不能为空
+
+- v0.0.23 （2025-08-11）
+
+    - 经测试，原版接口实际指定模型ID并未生效，修改chat.ts相关逻辑，支持指定模型ID。
+    - 根据官方最新Chat-API接口[https://chat.qwen.ai/api/models](https://chat.qwen.ai/api/models),更新models.ts列表
+
+## 项目介绍
+
 
 <span>[ 中文 | <a href="README_EN.md">English</a> ]</span>
 
@@ -139,7 +171,7 @@ MiniMax（海螺AI）接口转API [hailuo-free-api](https://github.com/LLM-Red-T
 拉取镜像并启动服务
 
 ```shell
-docker run -it -d --init --name qwen-free-api -p 8000:8000 -e TZ=Asia/Shanghai vinlic/qwen-free-api:latest
+docker run -it -d --init --name qwen-free-api -p 8000:8000 -e TZ=Asia/Shanghai vuldocker/qwen-free-api:latest
 ```
 
 查看服务实时日志
@@ -168,7 +200,7 @@ version: '3'
 services:
   qwen-free-api:
     container_name: qwen-free-api
-    image: vinlic/qwen-free-api:latest
+    image: vuldocker/qwen-free-api:latest
     restart: always
     ports:
       - "8000:8000"

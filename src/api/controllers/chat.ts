@@ -12,8 +12,9 @@ import EX from "@/api/consts/exceptions.ts";
 import { createParser } from "eventsource-parser";
 import logger from "@/lib/logger.ts";
 import util from "@/lib/util.ts";
+import { isValidModel, DEFAULT_MODEL } from "@/api/routes/models.ts";
 
-// 模型名称
+// 默认模型名称
 const MODEL_NAME = "qwen";
 // 最大重试次数
 const MAX_RETRY_COUNT = 3;
@@ -48,24 +49,46 @@ const FILE_MAX_SIZE = 100 * 1024 * 1024;
  *
  * 在对话流传输完毕后移除会话，避免创建的会话出现在用户的对话列表中
  *
+ * @param convId 会话ID
  * @param ticket tongyi_sso_ticket或login_aliyunid_ticket
  */
 async function removeConversation(convId: string, ticket: string) {
-  const result = await axios.post(
-    `https://qianwen.biz.aliyun.com/dialog/session/delete`,
-    {
-      sessionId: convId,
-    },
-    {
-      headers: {
-        Cookie: generateCookie(ticket),
-        ...FAKE_HEADERS,
+  // 检查会话ID是否有效
+  if (!convId || typeof convId !== 'string' || convId.trim() === '') {
+    logger.warn('Invalid conversation ID, skipping session removal');
+    return;
+  }
+
+  // 提取sessionId（如果convId格式为 sessionId-msgId，则只取sessionId部分）
+  const sessionId = convId.includes('-') ? convId.split('-')[0] : convId;
+  
+  // 再次验证sessionId是否有效
+  if (!sessionId || sessionId.trim() === '') {
+    logger.warn('Invalid session ID extracted, skipping session removal');
+    return;
+  }
+
+  try {
+    const result = await axios.post(
+      `https://qianwen.biz.aliyun.com/dialog/session/delete`,
+      {
+        sessionId: sessionId,
       },
-      timeout: 15000,
-      validateStatus: () => true,
-    }
-  );
-  checkResult(result);
+      {
+        headers: {
+          Cookie: generateCookie(ticket),
+          ...FAKE_HEADERS,
+        },
+        timeout: 15000,
+        validateStatus: () => true,
+      }
+    );
+    checkResult(result);
+    logger.info(`Successfully removed conversation: ${sessionId}`);
+  } catch (err) {
+    logger.warn(`Failed to remove conversation ${sessionId}: ${err.message}`);
+    // 不抛出异常，因为这是清理操作，失败不应影响主要功能
+  }
 }
 
 /**
@@ -73,18 +96,24 @@ async function removeConversation(convId: string, ticket: string) {
  *
  * @param model 模型名称
  * @param messages 参考gpt系列消息格式，多轮对话请完整提供上下文
+ * @param searchType 搜索类型
  * @param ticket tongyi_sso_ticket或login_aliyunid_ticket
  * @param refConvId 引用的会话ID
  * @param retryCount 重试次数
  */
 async function createCompletion(
-  model = MODEL_NAME,
+  model = DEFAULT_MODEL,
   messages: any[],
   searchType: string = '',
   ticket: string,
   refConvId = '',
   retryCount = 0
 ) {
+  // 验证模型是否支持
+  if (!isValidModel(model)) {
+    logger.warn(`Unsupported model: ${model}, using default model: ${DEFAULT_MODEL}`);
+    model = DEFAULT_MODEL;
+  }
   let session: http2.ClientHttp2Session;
   return (async () => {
     logger.info(messages);
@@ -122,7 +151,7 @@ async function createCompletion(
     req.write(
       JSON.stringify({
         mode: "chat",
-        model: "",
+        model: model,
         action: "next",
         userAction: "chat",
         requestId: util.uuid(false),
@@ -139,7 +168,7 @@ async function createCompletion(
     req.setEncoding("utf8");
     const streamStartTime = util.timestamp();
     // 接收流为输出文本
-    const answer = await receiveStream(req);
+    const answer = await receiveStream(req, model);
     session.close();
     logger.success(
       `Stream has completed transfer ${util.timestamp() - streamStartTime}ms`
@@ -156,7 +185,7 @@ async function createCompletion(
       logger.warn(`Try again after ${RETRY_DELAY / 1000}s...`);
       return (async () => {
         await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY));
-        return createCompletion(model, messages, ticket, refConvId, retryCount + 1);
+        return createCompletion(model, messages, searchType, ticket, refConvId, retryCount + 1);
       })();
     }
     throw err;
@@ -168,18 +197,24 @@ async function createCompletion(
  *
  * @param model 模型名称
  * @param messages 参考gpt系列消息格式，多轮对话请完整提供上下文
+ * @param searchType 搜索类型
  * @param ticket tongyi_sso_ticket或login_aliyunid_ticket
  * @param refConvId 引用的会话ID
  * @param retryCount 重试次数
  */
 async function createCompletionStream(
-  model = MODEL_NAME,
+  model = DEFAULT_MODEL,
   messages: any[],
   searchType: string = '',
   ticket: string,
   refConvId = '',
   retryCount = 0
 ) {
+  // 验证模型是否支持
+  if (!isValidModel(model)) {
+    logger.warn(`Unsupported model: ${model}, using default model: ${DEFAULT_MODEL}`);
+    model = DEFAULT_MODEL;
+  }
   let session: http2.ClientHttp2Session;
   return (async () => {
     logger.info(messages);
@@ -215,7 +250,7 @@ async function createCompletionStream(
     req.write(
       JSON.stringify({
         mode: "chat",
-        model: "",
+        model: model,
         action: "next",
         userAction: "chat",
         requestId: util.uuid(false),
@@ -232,7 +267,7 @@ async function createCompletionStream(
     req.setEncoding("utf8");
     const streamStartTime = util.timestamp();
     // 创建转换流将消息格式转换为gpt兼容格式
-    return createTransStream(req, (convId: string) => {
+    return createTransStream(req, model, (convId: string) => {
       // 关闭请求会话
       session.close();
       logger.success(
@@ -248,7 +283,7 @@ async function createCompletionStream(
       logger.warn(`Try again after ${RETRY_DELAY / 1000}s...`);
       return (async () => {
         await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY));
-        return createCompletionStream(model, messages, ticket, refConvId, retryCount + 1);
+        return createCompletionStream(model, messages, searchType, ticket, refConvId, retryCount + 1);
       })();
     }
     throw err;
@@ -256,11 +291,16 @@ async function createCompletionStream(
 }
 
 async function generateImages(
-  model = MODEL_NAME,
+  model = DEFAULT_MODEL,
   prompt: string,
   ticket: string,
   retryCount = 0
 ) {
+  // 验证模型是否支持
+  if (!isValidModel(model)) {
+    logger.warn(`Unsupported model: ${model}, using default model: ${DEFAULT_MODEL}`);
+    model = DEFAULT_MODEL;
+  }
   let session: http2.ClientHttp2Session;
   return (async () => {
     const messages = [
@@ -286,7 +326,7 @@ async function generateImages(
     req.write(
       JSON.stringify({
         mode: "chat",
-        model: "",
+        model: model,
         action: "next",
         userAction: "chat",
         requestId: util.uuid(false),
@@ -433,13 +473,14 @@ function checkResult(result: AxiosResponse) {
  * 从流接收完整的消息内容
  *
  * @param stream 消息流
+ * @param model 模型名称
  */
-async function receiveStream(stream: any): Promise<any> {
+async function receiveStream(stream: any, model: string = DEFAULT_MODEL): Promise<any> {
   return new Promise((resolve, reject) => {
     // 消息初始化
     const data = {
       id: "",
-      model: MODEL_NAME,
+      model: model,
       object: "chat.completion",
       choices: [
         {
@@ -467,11 +508,13 @@ async function receiveStream(stream: any): Promise<any> {
           if (role != "assistant" && !_.isString(content)) return str;
           return str + content;
         }, "");
+<<<<<<< HEAD
         const exceptCharIndex = text.indexOf("�");
         let chunk = "";
         // 只有当text比当前内容长时才提取增量
         if (text.length > data.choices[0].message.content.length) {
           chunk = text.substring(data.choices[0].message.content.length);
+        }
         }
         if (chunk && result.contentType == "text2image") {
           chunk = chunk.replace(
@@ -514,9 +557,10 @@ async function receiveStream(stream: any): Promise<any> {
  * 将流格式转换为gpt兼容流格式
  *
  * @param stream 消息流
+ * @param model 模型名称
  * @param endCallback 传输结束回调
  */
-function createTransStream(stream: any, endCallback?: Function) {
+function createTransStream(stream: any, model: string = DEFAULT_MODEL, endCallback?: Function) {
   // 消息创建时间
   const created = util.unixTimestamp();
   // 创建转换流
@@ -526,7 +570,7 @@ function createTransStream(stream: any, endCallback?: Function) {
     transStream.write(
       `data: ${JSON.stringify({
         id: "",
-        model: MODEL_NAME,
+        model: model,
         object: "chat.completion.chunk",
         choices: [
           {
@@ -558,6 +602,7 @@ function createTransStream(stream: any, endCallback?: Function) {
       if (text.length > content.length) {
         chunk = text.substring(content.length);
       }
+      }
       if (chunk && result.contentType == "text2image") {
         chunk = chunk.replace(
           /https?:\/\/[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b([-a-zA-Z0-9@:%_\+.~#?&//=\,]*)/gi,
@@ -573,7 +618,7 @@ function createTransStream(stream: any, endCallback?: Function) {
           content += chunk;
           const data = `data: ${JSON.stringify({
             id: `${result.sessionId}-${result.msgId}`,
-            model: MODEL_NAME,
+            model: model,
             object: "chat.completion.chunk",
             choices: [
               { index: 0, delta: { content: chunk }, finish_reason: null },
@@ -590,7 +635,7 @@ function createTransStream(stream: any, endCallback?: Function) {
           delta.content += `服务暂时不可用，第三方响应错误：${result.errorCode}`;
         const data = `data: ${JSON.stringify({
           id: `${result.sessionId}-${result.msgId}`,
-          model: MODEL_NAME,
+          model: model,
           object: "chat.completion.chunk",
           choices: [
             {
